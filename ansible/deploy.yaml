@@ -1,0 +1,97 @@
+---
+- name: Full CI/CD Pipeline + Auto Deployment to Minikube (Idempotent)
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    # image_tag is passed from Jenkins, default to 'latest'
+    image_tag: "{{ image_tag | default('latest') }}"
+    build_path: "{{ (playbook_dir + '/..') | realpath }}"
+    deployment_file: "{{ build_path }}/kubernetes/deployment.yaml"
+    service_file: "{{ build_path }}/kubernetes/service.yaml"
+    image_name: "myapp"
+
+  tasks:
+
+    - name: Display pipeline start
+      debug:
+        msg: |
+          🚀 CI/CD PIPELINE STARTED
+          Docker Image Tag: {{ image_name }}:{{ image_tag }}
+
+    # ----------------------------------------------------
+    # Start Minikube if not running
+    # ----------------------------------------------------
+    - name: Check if Minikube is running
+      shell: minikube status --format='{{.Host}}'
+      register: minikube_status
+      changed_when: false
+      failed_when: false
+
+    - name: Start Minikube if stopped
+      shell: minikube start --driver=docker
+      when: "'Running' not in minikube_status.stdout"
+
+    # ----------------------------------------------------
+    # Build Docker image inside Minikube only if not exists
+    # ----------------------------------------------------
+    - name: Check if Docker image exists in Minikube
+      shell: |
+        eval $(minikube docker-env)
+        docker images -q {{ image_name }}:{{ image_tag }}
+      register: image_check
+      changed_when: false
+
+    - name: Build Docker image in Minikube
+      shell: |
+        eval $(minikube docker-env)
+        docker build -t {{ image_name }}:{{ image_tag }} "{{ build_path }}"
+      when: image_check.stdout == ""
+      args:
+        executable: /bin/bash
+
+    # ----------------------------------------------------
+    # Patch deployment.yaml image tag safely
+    # ----------------------------------------------------
+    - name: Ensure deployment uses correct image tag
+      replace:
+        path: "{{ deployment_file }}"
+        regexp: 'image: {{ image_name }}:.*'
+        replace: "image: {{ image_name }}:{{ image_tag }}"
+
+    # ----------------------------------------------------
+    # Apply Kubernetes manifests idempotently
+    # ----------------------------------------------------
+    - name: Apply Deployment manifest
+      shell: kubectl apply -f "{{ deployment_file }}"
+
+    - name: Apply Service manifest
+      shell: kubectl apply -f "{{ service_file }}"
+
+    # ----------------------------------------------------
+    # Wait for deployment rollout
+    # ----------------------------------------------------
+    - name: Wait for deployment rollout to complete
+      shell: kubectl rollout status deployment/{{ image_name }} --timeout=120s
+
+    # ----------------------------------------------------
+    # Get Minikube IP
+    # ----------------------------------------------------
+    - name: Get Minikube IP
+      shell: minikube ip
+      register: mk_ip
+      changed_when: false
+
+    # ----------------------------------------------------
+    # Construct final URL
+    # ----------------------------------------------------
+    - name: Set final application URL
+      set_fact:
+        final_url: "http://{{ mk_ip.stdout }}:30080"
+
+    - name: Display final URL
+      debug:
+        msg: |
+          🎉 DEPLOYMENT SUCCESSFUL!
+          🌍 Application URL:
+          👉 {{ final_url }}
