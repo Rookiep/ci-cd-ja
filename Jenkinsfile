@@ -15,12 +15,12 @@ pipeline {
             }
         }
         stage('Push Docker Image') {
-            steps {
-                withDockerRegistry([credentialsId: 'dockerhub-credentials', url: '']) {
-                    docker.image('myapp:latest').push('latest')
-                }
-            }
+           steps {
+              script {
+            docker.image('myapp:latest').push('latest')
         }
+    }
+}
         stage('Deploy to Minikube') {
             steps {
                 ansiblePlaybook credentialsId: 'ssh-credentials', playbook: 'ansible/deploy.yaml'
