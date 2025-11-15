@@ -29,13 +29,6 @@
         msg: "📂 Docker Build Path: {{ build_path }}"
 
     # ----------------------------------------------------
-    # Start Minikube
-    # ----------------------------------------------------
-    - name: Start Minikube
-      shell: minikube start --driver=docker
-      changed_when: false
-
-    # ----------------------------------------------------
     # Build Docker image inside Minikube
     # ----------------------------------------------------
     - name: Build Docker image inside Minikube
