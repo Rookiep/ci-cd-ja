@@ -1,42 +1,29 @@
 pipeline {
-
-    agent {
-        docker {
-            image 'docker:24.0' 
-            args '--privileged -v /var/run/docker.sock:/var/run/docker.sock'
-        }
-    }
+    agent any
 
     stages {
-
         stage('Checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/Rookiep/ci-cd-ja.git'
             }
         }
-
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t myapp:latest .'
+                script {
+                    docker.build('myapp:latest')
+                }
             }
         }
-
         stage('Push Docker Image') {
             steps {
-                sh 'docker tag myapp:latest parthomazumdar/myapp:latest'
-                sh 'docker push parthomazumdar/myapp:latest'
+                withDockerRegistry([credentialsId: 'dockerhub-credentials', url: '']) {
+                    docker.image('myapp:latest').push('latest')
+                }
             }
         }
-
         stage('Deploy to Minikube') {
             steps {
-                ansiblePlaybook(
-                    credentialsId: 'ssh-credentials',
-                    playbook: 'ansible/deploy.yaml',
-                    extraVars: [
-                        image_tag: "latest"
-                    ]
-                )
+                ansiblePlaybook credentialsId: 'ssh-credentials', playbook: 'ansible/deploy.yaml'
             }
         }
     }
