@@ -4,7 +4,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/yourrepo.git'
+                git branch: 'main', url: 'https://github.com/Rookiep/ci-cd-ja.git'
             }
         }
         stage('Build Docker Image') {
