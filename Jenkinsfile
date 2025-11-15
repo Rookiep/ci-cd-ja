@@ -1,29 +1,35 @@
 pipeline {
+
     agent any
 
+    environment {
+        IMAGE_NAME = "myapp"
+        IMAGE_TAG  = "latest"
+    }
+
     stages {
+
         stage('Checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/Rookiep/ci-cd-ja.git'
             }
         }
-        stage('Build Docker Image') {
+
+        stage('Build Docker Image Locally') {
             steps {
-                script {
-                    docker.build('myapp:latest')
-                }
+                sh """
+                    echo '🔨 Building Docker Image Locally...'
+                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                """
             }
         }
-        stage('Push Docker Image') {
-           steps {
-              script {
-            docker.image('myapp:latest').push('latest')
-        }
-    }
-}
-        stage('Deploy to Minikube') {
+
+        stage('Run Ansible Deployment') {
             steps {
-                ansiblePlaybook credentialsId: 'ssh-credentials', playbook: 'ansible/deploy.yaml'
+                ansiblePlaybook(
+                    playbook: 'ansible/deploy.yaml',
+                    extras: "--extra-vars \"image_tag=${IMAGE_TAG}\""
+                )
             }
         }
     }
